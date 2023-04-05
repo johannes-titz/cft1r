@@ -104,8 +104,10 @@ Guttman scaling with homogeneity index and Zysno's scalability index. This takes
 
 ```{r ordinal}
 simpleCache("zys", zysnotize(as.matrix(pre)))
+            #recreate = TRUE)
 zys$scalability
 simpleCache("lv", suppressWarnings(loevenize(as.matrix(pre))))
+            #, recreate = TRUE)
 lv$h
 ```
 
@@ -239,11 +241,10 @@ table(post$Subtest_5_12_post, post$Subtest_6_15_post)
 
 Indeed, 5_12 is easier than 6_15! 67 are not scalable, this is only a little less than before. 
 
-Now, we had to check these cases in the the raw data. The results are stored in pairpost.csv.
+Now, we had to check these cases in the the raw data. The results are stored in pairPost.csv.
 
 ```{r pair analysis2}
-p <- read.csv2("pairpost.csv")
-p <- p[, 4:5]
+p <- read.csv2("pairPost.csv")
 names(p) <- c("answer", "next_attempted_item")
 p$not_reached <- is.na(p$answer) & is.na(p$next_attempted_item)
 p$answer2 <- ifelse(p$not_reached, "not_reached", p$answer)
