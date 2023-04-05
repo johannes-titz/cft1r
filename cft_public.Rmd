@@ -1,0 +1,283 @@
+---
+title: "Analysis for: Deviations From Perfect Scaling as a Path to Perfect Scaling..."
+author: "Johannes Titz"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      dev = c("cairo_pdf", "png"),
+                      fig.path = "plots/",
+                      dev.args = list(antialias = "subpixel"),
+                      dpi = 300,
+                      echo = TRUE,
+                      fig.height = 6, fig.width = 6,
+                      options(width = 82))
+```
+
+## Quick overview
+
+This analysis accompanies the following paper:
+Titz & Ackermann, Deviations From Perfect Scaling as a Path to Perfect Scaling: An Intelligence Test Example
+
+The general idea of this analysis is to show that deviations from perfect scaling (unidimensionality) should not be treated as noise but as valuable information. This information can lead to a substantial improvement of items, which is demonstrated with the CFT 1-R intelligence test.
+
+The data includes 3 Tests (Subtests 4 to 6), which supposedly measure inductive reasoning. Factor analysis results in a good 1-factor solution. Since all correlations are positive, STA will always result in a monotonic model and unidimensionality. In this case STA is extremely conservative regarding unidimensionality. A better solution is to use Guttman scaling to check unidimensionality. The novelity in this paper is to use Guttman scaling to find out which items are problematic and which persons produce these answers and why.
+
+A concrete example is the item pair 12 (subtest 5) and 15 (subtest 6), which show the most violations of undimensionality. The standard procedure is to ignore these violations and treat them as random noise. But when we look at the data more carefully, we see that these violations are systematic. First of all, because of the speed character several participants did not even reach the item 12. We do not know their ability on this item, but treat the item as unsolved. Second, the distribution of distractors is not uniform. Most participants choose the same distractor.
+
+## libs
+
+```{r}
+# please uncomment this line if you do not have librarian yet
+# install.packages(librarian)
+librarian::shelf(tidyverse, johannes-titz/zysno, plot.matrix, colorspace,
+                 foreign, psych, psych, simpleCache, xtable)
+setCacheDir("cache")
+```
+
+## read data
+
+pre.csv and post.csv contain all answers to all items from subtests 4-6. pre is the pre test, post is the post test. For our analysis no other information is required.
+
+```{r}
+pre <- readr::read_csv("pre.csv")
+post <- readr::read_csv("post.csv")
+```
+
+## Factor Analysis with pre data set
+
+For FA, 0-variance items must be removed, so difficulties must be larger than 0 and smaller than 1. Otherwise, correlations cannot be calculated and fa is not happy with NA values.
+
+```{r filter}
+difficulty <- colMeans(pre, na.rm = TRUE)
+filter <- which(difficulty < 1 & difficulty > 0)
+pre2 <- pre %>% select(filter)
+```
+
+Out of `r ncol(pre)` variables, `r length(filter)` have item difficulties < 0 and < 1 and are used in the analysis.
+
+```{r FA}
+cors <- cor(pre2, use = "pairwise.complete.obs")
+cors <- na.omit(cors)
+fa1 <- fa(r = cors, nfactors = 1)
+fa1
+loadings <- unclass(fa1$loadings)
+cors2 <- round(cors, 3)
+mynames <- colnames(cors2)
+colnames(cors2) <- substr(mynames, 9, 12)
+rownames(cors2) <- substr(mynames, 9, 12)
+breaks <- seq(-0.1, max(cors2[upper.tri(cors2)]), 0.1)
+plot(cors2,
+     col = sequential_hcl(length(breaks),
+                          rev = TRUE, palette = "Blues"),
+     axis.col = list(side = 1, las = 2, cex.axis = 0.5),
+     axis.row = list(side = 2, las = 2, cex.axis = 0.5),
+     key = list(cex.axis = 1, side = 3), spacing.key = c(2, 2, 0.5),
+     breaks = breaks,
+     na.col = "white", main = "", na.cell = FALSE, xlab="", ylab="")
+```
+
+What can be seen is that within a subtest the correlations are generally higher than across subtests. But overall a 1-factor solution seems fine, judging from the factor loadings.
+
+Regarding STA, this data set is clearly unidimensional because there are almost no negative correlations (red) and the few ones can be explained with random noise.
+
+```{r test 2 vars, eval=F}
+pre3 <- pre2 %>%
+  select(Subtest_5_12, Subtest_6_12)
+cors <- cor(pre3, use = "pairwise.complete.obs")
+cors <- na.omit(cors)
+fa1 <- fa(r = cors, nfactors = 1)
+fa1
+loadings <- unclass(fa1$loadings)
+cbind(pre3, factor.scores(scale(pre3), fa1)$scores)
+```
+
+## Ordinal analyses 
+
+Guttman scaling with homogeneity index and Zysno's scalability index. This takes some time, so we cache it with simpleCache.
+
+```{r ordinal}
+simpleCache("zys", zysnotize(as.matrix(pre)))
+zys$scalability
+simpleCache("lv", suppressWarnings(loevenize(as.matrix(pre))))
+lv$h
+```
+
+Zysno's scalability for the whole test is medium (0.43) and Loevinger's homogenity is even lower (0.32). This is not necessarily a contradiction to the factor analysis. We have to keep in mind that there are many random influences, such as guessing, attention fluctuations, etc.. The question is rather: what can be gained from ordinal analyses beyond FA?
+
+Plot results. We just use the number of errors because this is straightforward and intuitive.
+
+```{r ordinal plot}
+item_matrix <- lv$error_matrix
+colnames(item_matrix) <- substr(names(pre), 9, 12)
+rownames(item_matrix) <- substr(names(pre), 9, 12)
+item_matrix <- round(item_matrix, 3)
+breaks <- seq(min(item_matrix), max(item_matrix), 5)
+plot(item_matrix, asp = FALSE,
+     col = sequential_hcl(length(breaks), rev = TRUE, palette = "Blues"),
+     xlab = "", ylab = "", main = "",
+     axis.col = list(side = 1, las = 2, cex.axis = 0.5),
+     axis.row = list(side = 2, las = 2, cex.axis = 0.5),
+     key = list(cex.axis = 1, side = 3), spacing.key = c(2, 2, 0.5),
+     breaks = breaks, na.cell = FALSE
+)
+```
+
+Make a table with loadings and number of errors:
+
+```{r}
+loadings2 <- loadings
+colnames(loadings2) <- "factor loading"
+rownames(loadings2) <- substr(rownames(loadings2), 9, 12)
+item_matrix2 <- item_matrix
+avg_viol <- colMeans(item_matrix2)
+plot(as.numeric(loadings2), avg_viol)
+cor(as.numeric(loadings2), avg_viol)
+lowest_cors <- apply(cors, 2, min)
+highest_viol <- apply(item_matrix2, 2, max)
+tbl <- cbind(loadings2, avg_viol, highest_viol)
+rownames(tbl) <- rownames(loadings2)
+print(xtable(tbl, caption = "Factor loadings of unidimensional factor analysis model.", label = "tab:fa1", digits = c(0, 2, 0, 0)),
+      file = "tables/fa1.tex",
+      booktabs = TRUE, size="\\fontsize{9pt}{10pt}\\selectfont")
+cors <- ifelse(cors == 1, NA, cors)
+```
+
+min unidim: `r min(item_matrix)`
+max unidim: `r max(lv$error_matrix)`
+
+Once again, within a subtest there are fewer violations than between.
+
+## Most problematic item pairs
+
+What are the largest violations?
+
+```{r}
+em <- lv$error_matrix
+colnames(em) <- colnames(pre)
+rownames(em) <- colnames(pre)
+em2 <- reshape2::melt(em)
+em2 %>%
+  filter(value >= 70)
+```
+
+## Find persons that answered inconsistent on 5_12/6_15
+
+```{r}
+table(pre$Subtest_5_12, pre$Subtest_6_15)
+```
+
+Scaling:
+
+```{r}
+vec <- paste0(pre$Subtest_5_12, pre$Subtest_6_15)
+table(vec)
+colMeans(pre[, c("Subtest_5_12", "Subtest_6_15")])
+```
+
+10, in this case, means that they have solved the difficult item but not the easy one.
+
+Now, we had to look into the raw data again and check all inconsistent answers. This data is stored in pair.csv.
+
+## Pair 5_12 and 6_15
+
+```{r pair analysis}
+p <- read.csv2("pair.csv")
+names(p) <- c("attempted", "answer", "next_attempted_item",
+              "last_attempted_item", "attempted_all_items", "comment")
+p$not_reached <- p$attempted == 0 & p$next_attempted_item == 0
+p$answer2 <- ifelse(p$not_reached, "not_reached", p$answer)
+```
+
+Answers
+
+```{r}
+table(p$answer2, useNA = "always")
+round(prop.table(table(p$answer2, useNA = "always")), 3)
+chisq.test(c(0, 4, 16, 38))
+```
+
+1 participant actually solved the item, but it did not count because the time was up.
+
+14 participants did not reach item 12. If item 12 was not attempted and all other items after that were also not attempted, we counted it as "not reached". Regarding the general intelligence ability, we need to exclude these participants because we do not know whether they have the ability to solve the item or not. The violation of undimensionality is clear: the second factor is the speed dimension.
+
+4 participants skipped item 12. These cannot be scaled.
+
+None of the participants chose distractor 2 and only 3 chose distractor 3.
+
+Option 5 turns out to be an attractor with almost half of the participants choosing this option. What is wrong with option 5?
+
+2 Dimensions are relevant, the shape and the filling state (percentage of black in the shape). To adults, it should be fairly clear that the filling state is the decisive factor and item option 1 does not belong. But many children do not necessarily think so. They look at the shape and the rhombus is the most peculiar shape. But even the rectangle (option 4) deviates from basic geometric forms.
+
+## Conclusion, so far
+
+We cannot scale 
+
+- 4 participants that skipped the item
+- 4 participants choosing option 3
+
+If we assume that options 4 and 5 are actually valid, all other participants can be scaled. Even if only option 5 is considered valid, this makes it possible to scale 38 additional participants. With FA they would be regarded as noise.
+
+Note that this has no effect on other participants. If somebody chose option 4 or 5 for item 12, his or her answers were consistent before and are still consistent now. These participants would simply move from cell a to cell c. Of course their scale position should be more accurate now, but the scalability does not change overall.
+
+If some participants did not reach item 15 on subtest 6, they might need to be removed because we do not know whether they are able to solve the item. This could reduce scalablity. The best way would be to make a new study.
+
+## Same procedure with the post data set
+
+```{r}
+vec <- paste0(post$Subtest_5_12_post, post$Subtest_6_15_post)
+table(vec)
+colMeans(post[, c("Subtest_5_12_post", "Subtest_6_15_post")])
+table(post$Subtest_5_12_post, post$Subtest_6_15_post)
+```
+
+Indeed, 5_12 is easier than 6_15! 67 are not scalable, this is only a little less than before. 
+
+Now, we had to check these cases in the the raw data. The results are stored in pairpost.csv.
+
+```{r pair analysis2}
+p <- read.csv2("pairpost.csv")
+p <- p[, 4:5]
+names(p) <- c("answer", "next_attempted_item")
+p$not_reached <- is.na(p$answer) & is.na(p$next_attempted_item)
+p$answer2 <- ifelse(p$not_reached, "not_reached", p$answer)
+```
+
+Answers
+
+```{r}
+table(p$answer2, useNA = "always")
+round(prop.table(table(p$answer2, useNA = "always")), 3)
+chisq.test(c(2, 5, 10, 45))
+```
+
+## FA post
+
+This is not part of the paper, but might still be of interest to some.
+
+For FA, 0-variance items must be removed, so difficulties must be larger than 0 and smaller than 1. Otherwise, correlations cannot be calculated and fa is not happy with NA values.
+
+```{r filterpost, eval = TRUE}
+difficulty <- colMeans(post, na.rm = TRUE)
+filter <- which(difficulty < 1 & difficulty > 0)
+post2 <- post %>% select(filter)
+```
+
+Out of `r ncol(df)` variables, `r length(filter)` have item difficulties < 0 and < 1 and are used in the analysis.
+
+Now, the actual analysis:
+
+```{r FApost}
+cors <- cor(post2, use = "pairwise.complete.obs")
+cors <- na.omit(cors)
+fa1 <- fa(r = cors, nfactors = 1)
+fa1
+loadings <- unclass(fa1$loadings)
+```
+
