@@ -85,17 +85,12 @@ plot(cors2,
 
 What can be seen is that within a subtest the correlations are generally higher than across subtests. But overall a 1-factor solution seems fine, judging from the factor loadings.
 
-Regarding STA, this data set is clearly unidimensional because there are almost no negative correlations (red) and the few ones can be explained with random noise.
+Regarding STA, this data set is clearly unidimensional because there are almost no negative correlations and the few ones can be explained with random noise.
 
-```{r test 2 vars, eval=F}
-pre3 <- pre2 %>%
-  select(Subtest_5_12, Subtest_6_12)
-cors <- cor(pre3, use = "pairwise.complete.obs")
-cors <- na.omit(cors)
-fa1 <- fa(r = cors, nfactors = 1)
-fa1
-loadings <- unclass(fa1$loadings)
-cbind(pre3, factor.scores(scale(pre3), fa1)$scores)
+```{r negative cors}
+sum(cors < 0) 
+long <- reshape2::melt(cors)
+long[long[, 3]<0, ]
 ```
 
 ## Ordinal analyses 
@@ -136,18 +131,22 @@ Make a table with loadings and number of errors:
 ```{r}
 loadings2 <- loadings
 colnames(loadings2) <- "factor loading"
-rownames(loadings2) <- substr(rownames(loadings2), 9, 12)
+rownames(loadings2) <- gsub("\\_$", "", substr(rownames(loadings2), 9, 12))
+rownames(loadings2) <- gsub("\\_", "_{", rownames(loadings2))
+rownames(loadings2) <- gsub("$", "}", rownames(loadings2))
 item_matrix2 <- item_matrix
 avg_viol <- colMeans(item_matrix2)
 plot(as.numeric(loadings2), avg_viol)
 cor(as.numeric(loadings2), avg_viol)
 lowest_cors <- apply(cors, 2, min)
 highest_viol <- apply(item_matrix2, 2, max)
-tbl <- cbind(loadings2, avg_viol, highest_viol)
-rownames(tbl) <- rownames(loadings2)
-print(xtable(tbl, caption = "Factor loadings of unidimensional factor analysis model.", label = "tab:fa1", digits = c(0, 2, 0, 0)),
+tbl <- cbind(loadings2, difficulty, avg_viol, highest_viol)
+rownames(tbl) <- paste0("$", rownames(loadings2), "$")
+colnames(tbl) <-  c(r"($\lambda$)", "$P$", r"($\bar{e}$)", r"($\mathrm{max}(e)$)")
+print(xtable(tbl, caption = "Item statistics", label = "tab:fa1", digits = c(0, 2, 2, 0, 0)),
       file = "tables/fa1.tex",
-      booktabs = TRUE, size="\\fontsize{9pt}{10pt}\\selectfont")
+      booktabs = TRUE, size="\\fontsize{9pt}{10pt}\\selectfont", contents.only = TRUE, sanitize.colnames = identity, scalebox = 0.75, sanitize.rownames = identity, table.placement = "h!t", only.contents = T)
+system("cp tables/fa1.tex ~/2022/laura_paper_neu/tables/")
 cors <- ifelse(cors == 1, NA, cors)
 ```
 
@@ -281,4 +280,22 @@ fa1 <- fa(r = cors, nfactors = 1)
 fa1
 loadings <- unclass(fa1$loadings)
 ```
+
+## Q3
+
+```{r}
+librarian::shelf(sirt)
+# rasch model
+mod <- rasch.mml2(pre, progress = F)
+# estimate WLEs
+mod.wle <- wle.rasch(dat = pre, b = mod$item$b)
+# calculate Yen's Q3 statistic
+mod.q3 <- Q3(dat = pre, theta = mod.wle$theta, b = mod$item$b)
+# 5_12 is indeed negative
+mod.q3$q3.long[mod.q3$q3.long$Item1 == "Subtest_5_12",]
+long <- mod.q3$q3.long[order(mod.q3$q3.long[,3]), ]
+sum(abs(long$Q3) >=.0887)
+```
+
+
 
