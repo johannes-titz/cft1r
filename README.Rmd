@@ -3,10 +3,8 @@ title: "Analysis for: Deviations From Perfect Scaling as a Path to Perfect Scali
 author: "Johannes Titz"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
-  html_document:
-    toc: yes
-  pdf_document:
-    toc: yes
+  github_document:
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
